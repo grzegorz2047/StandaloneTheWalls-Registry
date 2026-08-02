@@ -1,0 +1,6 @@
+# Derived from Unicode UTS #39 confusables.txt, Unicode 17.0.0 (2025-07-22).
+# Upstream SHA-256: 091c7f82fc39ef208faf8f94d29c244de99254675e09de163160c810d13ef22a
+# Only source code points admitted by [a-z0-9_] and having non-identity mappings are retained.
+0031 ; 006C ; MA # 1 -> l
+0030 ; 004F ; MA # 0 -> O
+006D ; 0072 006E ; MA # m -> rn
