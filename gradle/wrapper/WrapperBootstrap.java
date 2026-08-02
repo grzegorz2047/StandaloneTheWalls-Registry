@@ -14,7 +14,7 @@ final class WrapperBootstrap {
             "https://raw.githubusercontent.com/grzegorz2047/StandaloneTheWalls/"
                     + "ed45d58db9a0b883ea1f7284324a205f33f16cba/gradle/wrapper/gradle-wrapper.jar");
     private static final String SHA256 =
-            "d81e0f23ade952b35e55333dd5f1821585e887c6d24305aeea2fbc8dad564b95";
+            "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7";
 
     private WrapperBootstrap() {}
 
