@@ -38,6 +38,17 @@ jobs:
           TARGET_BRANCH: agent/issue-1-registry-claim-pipeline
         run: |
           set -euo pipefail
+          cat > /tmp/chunks.sha256 <<'EOF'
+          97e91238dffa85c06e77b7a960b604224d7c13117945cb479a28d5f79532518f  bootstrap/part-00
+          b5f88617dcf061021cc975de7b9cd6a0e7398715d573b620dc2e3753b810f679  bootstrap/part-01
+          5f4ffef666f044e513c786fed8ebda96ef121857e5fff18914bc7e3e80242557  bootstrap/part-02
+          25661b326d48cbe03e8afa830c948337d8265b8eff12fbaf5cf589574bfbec7d  bootstrap/part-03
+          9b243e0ddbd45d89d60b1c7da7c1eab08fc89161adff8edf46bc56e4463df33f  bootstrap/part-04
+          919f11b8158cc94aedf81da855afb265b094dce1c9e5f4ead5dc4341f75aaf0e  bootstrap/part-05
+          373dddf8b8b120bc35bf2cf0fca4d0f449daaa0c5127a0330779c72e9363f2a3  bootstrap/part-06
+          8ded03c9a6ae68dc540e9d5c02b25e26f4376d97b71de0776598c278fb618f95  bootstrap/part-07
+          EOF
+          sha256sum --check /tmp/chunks.sha256
           cat bootstrap/part-* | base64 --decode > /tmp/registry.tar.gz
           echo "$ARCHIVE_SHA256  /tmp/registry.tar.gz" | sha256sum --check -
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
