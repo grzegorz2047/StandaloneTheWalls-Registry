@@ -33,8 +33,13 @@ final class WrapperBootstrap {
             throw new IOException("wrapper download failed with HTTP " + response.statusCode());
         }
         byte[] bytes = response.body();
-        if (!SHA256.equals(digest(bytes))) {
-            throw new SecurityException("downloaded Gradle wrapper JAR checksum mismatch");
+        String actualSha256 = digest(bytes);
+        if (!SHA256.equals(actualSha256)) {
+            throw new SecurityException(
+                    "downloaded Gradle wrapper JAR checksum mismatch: expected "
+                            + SHA256
+                            + " but received "
+                            + actualSha256);
         }
         Files.createDirectories(target.getParent());
         Path temporary = target.resolveSibling(target.getFileName() + ".tmp");
