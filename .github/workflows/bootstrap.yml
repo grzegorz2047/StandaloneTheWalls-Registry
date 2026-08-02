@@ -39,7 +39,8 @@ jobs:
         run: |
           set -euo pipefail
           cat > /tmp/chunks.sha256 <<'EOF'
-          97e91238dffa85c06e77b7a960b604224d7c13117945cb479a28d5f79532518f  bootstrap/part-00
+          9dcf298cd0379df8c081dbe5b1f86beaf372b3f90aac0af2e69a621a3da50c17  bootstrap/part-00a
+          ef88259bef3d47eabe980c7729fe31eb8ff45d39d5dbf6313a7b0edb5e5651e5  bootstrap/part-00b
           b5f88617dcf061021cc975de7b9cd6a0e7398715d573b620dc2e3753b810f679  bootstrap/part-01
           5f4ffef666f044e513c786fed8ebda96ef121857e5fff18914bc7e3e80242557  bootstrap/part-02
           25661b326d48cbe03e8afa830c948337d8265b8eff12fbaf5cf589574bfbec7d  bootstrap/part-03
