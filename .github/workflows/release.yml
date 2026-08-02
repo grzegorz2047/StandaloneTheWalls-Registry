@@ -1,0 +1,116 @@
+name: Publish immutable registry snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Immutable release tag, for example registry-v1.0.0"
+        required: true
+        type: string
+      sequence:
+        description: "Monotonic snapshot sequence"
+        required: true
+        type: string
+      generated_at:
+        description: "Canonical UTC Instant, for example 2026-08-02T00:00:00Z"
+        required: true
+        type: string
+      root_public_key_b64:
+        description: "Canonical Ed25519 X.509 SPKI in padded Base64"
+        required: true
+        type: string
+      overlap_root_public_keys_b64:
+        description: "Optional old/new overlap root SPKIs, one padded Base64 value per line"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: registry-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: registry-production
+    steps:
+      - name: Check out exact dispatch commit
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Set up Java 21
+        uses: actions/setup-java@536de9e5ba95309550b74c08e297b4b0f11e8b7d
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Validate immutable release inputs
+        env:
+          VERSION: ${{ inputs.version }}
+          SEQUENCE: ${{ inputs.sequence }}
+          GENERATED_AT: ${{ inputs.generated_at }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          [[ "$VERSION" =~ ^registry-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$SEQUENCE" =~ ^(0|[1-9][0-9]*)$ ]]
+          [[ "$GENERATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$ ]]
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >existing-tag.txt
+          tag_status=$?
+          set -e
+          case "$tag_status" in
+            0) echo "release tag already exists" >&2; exit 1 ;;
+            2) ;;
+            *) echo "could not verify release tag uniqueness" >&2; exit "$tag_status" ;;
+          esac
+      - name: Require protected root signing secret
+        env:
+          REGISTRY_ROOT_PRIVATE_KEY_PKCS8_B64: ${{ secrets.REGISTRY_ROOT_PRIVATE_KEY_PKCS8_B64 }}
+        run: test -n "$REGISTRY_ROOT_PRIVATE_KEY_PKCS8_B64"
+      - name: Re-run all validation from clean checkout
+        run: |
+          mkdir -p claims
+          ./gradlew --no-daemon --stacktrace clean check
+          ./gradlew --no-daemon run --args="validate claims"
+      - name: Build and sign exact bytes
+        env:
+          REGISTRY_ROOT_PRIVATE_KEY_PKCS8_B64: ${{ secrets.REGISTRY_ROOT_PRIVATE_KEY_PKCS8_B64 }}
+          SEQUENCE: ${{ inputs.sequence }}
+          GENERATED_AT: ${{ inputs.generated_at }}
+          ROOT_PUBLIC_KEY: ${{ inputs.root_public_key_b64 }}
+          OVERLAP_ROOTS: ${{ inputs.overlap_root_public_keys_b64 }}
+        run: |
+          mkdir release-assets
+          printf '%s' "$OVERLAP_ROOTS" > overlap-roots.txt
+          ./gradlew --no-daemon run --args="release claims $SEQUENCE $GENERATED_AT $ROOT_PUBLIC_KEY overlap-roots.txt release-assets"
+          ./gradlew --no-daemon run --args="verify-artifact release-assets $ROOT_PUBLIC_KEY"
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 5
+      - name: Publish draft, verify complete set, then make immutable release visible
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          SEQUENCE: ${{ inputs.sequence }}
+        run: |
+          set -euo pipefail
+          created=false
+          cleanup() {
+            if "$created"; then
+              gh release delete "$VERSION" --yes --cleanup-tag >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup ERR
+          gh release create "$VERSION" release-assets/* \
+            --draft \
+            --latest=false \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --notes "Signed registry snapshot sequence $SEQUENCE built from $GITHUB_SHA."
+          created=true
+          test "$(gh release view "$VERSION" --json assets --jq '.assets | length')" -eq 5
+          gh release edit "$VERSION" --draft=false --latest=false
+          trap - ERR

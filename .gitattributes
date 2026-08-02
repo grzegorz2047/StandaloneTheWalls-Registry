@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+src/test/resources/snapshot-v1-vector.json -text

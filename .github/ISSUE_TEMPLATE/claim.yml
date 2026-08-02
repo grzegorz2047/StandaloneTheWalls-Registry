@@ -1,0 +1,30 @@
+name: Global handle claim
+description: Track one reviewed self-signed claim, rotation, display-name change or revoke
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Publiczny issue nie jest dowodem tożsamości. Nie wklejaj prywatnego klucza, seeda ani recovery material.
+  - type: dropdown
+    id: operation
+    attributes:
+      label: Operacja
+      options:
+        - CLAIM
+        - ROTATE
+        - SET_DISPLAY_NAME
+        - REVOKE
+    validations:
+      required: true
+  - type: input
+    id: handle
+    attributes:
+      label: Canonical handle
+      description: Musi pasować do [a-z0-9_]{3,24}.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Uwagi dla review
+      description: Nie umieszczaj materiału prywatnego. Claim JSON trafia do pull requestu.

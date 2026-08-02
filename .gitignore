@@ -1,0 +1,12 @@
+.gradle/
+build/
+out/
+*.class
+gradle/wrapper/gradle-wrapper.jar
+*.pem
+*.key
+*.p8
+*.pk8
+transcript.bin
+release-assets/
+overlap-roots.txt
