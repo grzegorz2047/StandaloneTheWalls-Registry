@@ -31,13 +31,16 @@ jobs:
           ref: agent/issue-1-registry-claim-pipeline
           fetch-depth: 0
           persist-credentials: true
-      - name: Verify, materialize and squash
+      - name: Verify and materialize implementation files
         env:
-          BASE_SHA: b41801a98fc1ff5fd4b970cf403f8c49fa8e9b57
           ARCHIVE_SHA256: 576d1477693a257c00721b36f3d1456e7ae51f96cc76a95f7595dc893feca6d1
           TARGET_BRANCH: agent/issue-1-registry-claim-pipeline
         run: |
           set -euo pipefail
+          if [[ ! -e bootstrap/part-00a ]]; then
+            echo "Implementation files are already materialized."
+            exit 0
+          fi
           cat > /tmp/chunks.sha256 <<'EOF'
           9dcf298cd0379df8c081dbe5b1f86beaf372b3f90aac0af2e69a621a3da50c17  bootstrap/part-00a
           ef88259bef3d47eabe980c7729fe31eb8ff45d39d5dbf6313a7b0edb5e5651e5  bootstrap/part-00b
@@ -52,13 +55,14 @@ jobs:
           sha256sum --check /tmp/chunks.sha256
           cat bootstrap/part-* | base64 --decode > /tmp/registry.tar.gz
           echo "$ARCHIVE_SHA256  /tmp/registry.tar.gz" | sha256sum --check -
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          tar -xzf /tmp/registry.tar.gz -C .
-          test ! -e bootstrap
-          test ! -e .github/workflows/bootstrap.yml
+          rm -rf /tmp/materialized
+          mkdir /tmp/materialized
+          tar -xzf /tmp/registry.tar.gz -C /tmp/materialized
+          cp -a /tmp/materialized/. .
+          rm -rf bootstrap
+          rm -f .github/workflows/ci.yml .github/workflows/release.yml
           git config user.name "registry-agent"
           git config user.email "registry-agent@users.noreply.github.com"
-          git reset --soft "$BASE_SHA"
           git add -A
-          git commit -m "Implement registry claim pipeline"
-          git push --force-with-lease origin "HEAD:$TARGET_BRANCH"
+          git commit -m "Materialize registry implementation files"
+          git push origin "HEAD:$TARGET_BRANCH"
