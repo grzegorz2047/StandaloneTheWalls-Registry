@@ -1,0 +1,86 @@
+name: Registry CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "agent/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: registry-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out registry
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+      - name: Set up Java 21
+        uses: actions/setup-java@536de9e5ba95309550b74c08e297b4b0f11e8b7d
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Validate pinned wrapper bootstrap contract
+        run: |
+          grep -Fq 'ed45d58db9a0b883ea1f7284324a205f33f16cba/gradle/wrapper/gradle-wrapper.jar' gradle/wrapper/WrapperBootstrap.java
+          grep -Fq 'd81e0f23ade952b35e55333dd5f1821585e887c6d24305aeea2fbc8dad564b95' gradle/wrapper/WrapperBootstrap.java
+          grep -Fq '9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14' gradle/wrapper/gradle-wrapper.properties
+      - name: Build, test, coverage and policy checks
+        run: |
+          mkdir -p claims
+          ./gradlew --no-daemon --stacktrace check
+      - name: Validate all submitted claims
+        run: ./gradlew --no-daemon run --args="validate claims"
+      - name: Prove missing root secret cannot publish
+        env:
+          VECTOR_ROOT_PUBLIC_KEY: MCowBQYDK2VwAyEAoBGdJyYRGPquhsJXoEoTOOticDHR4bM2z/5DScGCHPU=
+        run: |
+          : > empty-overlap-roots.txt
+          rm -rf no-secret-release
+          set +e
+          env -u REGISTRY_ROOT_PRIVATE_KEY_PKCS8_B64 ./gradlew --no-daemon run \
+            --args="release claims 0 2026-08-02T00:00:00Z $VECTOR_ROOT_PUBLIC_KEY empty-overlap-roots.txt no-secret-release"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          test ! -e no-secret-release
+      - name: Repeat deterministic-output proof
+        run: |
+          ./gradlew --no-daemon test --tests '*deterministicResolutionAndSnapshot' --rerun-tasks
+          ./gradlew --no-daemon test --tests '*deterministicResolutionAndSnapshot' --rerun-tasks
+
+  consumer-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out registry
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+      - name: Check out pinned consumer
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          repository: grzegorz2047/StandaloneTheWalls
+          ref: ed45d58db9a0b883ea1f7284324a205f33f16cba
+          path: consumer
+          persist-credentials: false
+      - name: Set up Java 21
+        uses: actions/setup-java@536de9e5ba95309550b74c08e297b4b0f11e8b7d
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Compare public vectors byte for byte
+        run: python3 scripts/verify-consumer-vector.py consumer/docs/registry/snapshot-v1-vector.json
+      - name: Run pinned consumer verifier tests
+        working-directory: consumer
+        run: |
+          ./gradlew --no-daemon \
+            :identity-registry:test \
+            --tests '*RegistrySnapshotJsonCodecTest' \
+            --tests '*RegistrySnapshotVerifierTest'
