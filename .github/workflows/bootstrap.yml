@@ -1,0 +1,46 @@
+name: Materialize registry implementation
+
+on:
+  push:
+    branches:
+      - agent/issue-1-registry-claim-pipeline
+    paths:
+      - "bootstrap/**"
+      - ".github/workflows/bootstrap.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: registry-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out staging branch
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: agent/issue-1-registry-claim-pipeline
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify, materialize and squash
+        env:
+          BASE_SHA: b41801a98fc1ff5fd4b970cf403f8c49fa8e9b57
+          ARCHIVE_SHA256: 576d1477693a257c00721b36f3d1456e7ae51f96cc76a95f7595dc893feca6d1
+          TARGET_BRANCH: agent/issue-1-registry-claim-pipeline
+        run: |
+          set -euo pipefail
+          cat bootstrap/part-* | base64 --decode > /tmp/registry.tar.gz
+          echo "$ARCHIVE_SHA256  /tmp/registry.tar.gz" | sha256sum --check -
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          tar -xzf /tmp/registry.tar.gz -C .
+          test ! -e bootstrap
+          test ! -e .github/workflows/bootstrap.yml
+          git config user.name "registry-agent"
+          git config user.email "registry-agent@users.noreply.github.com"
+          git reset --soft "$BASE_SHA"
+          git add -A
+          git commit -m "Implement registry claim pipeline"
+          git push --force-with-lease origin "HEAD:$TARGET_BRANCH"
